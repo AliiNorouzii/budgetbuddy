@@ -8,15 +8,27 @@ describe('AppController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [AppService],
+      providers: [
+        {
+          provide: AppService,
+          useValue: {
+            getHello: jest
+              .fn()
+              .mockResolvedValue(
+                'Connection to Database Successful! User count: 2',
+              ),
+          },
+        },
+      ],
     }).compile();
 
     appController = app.get<AppController>(AppController);
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('should return database connection status', async () => {
+      const result = await appController.getHello();
+      expect(result).toContain('Connection to Database Successful!');
     });
   });
 });

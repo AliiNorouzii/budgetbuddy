@@ -353,3 +353,12 @@ test: stabilize e2e application startup test
 docs: update README and stabilize e2e tests
 License
 This project is currently developed as a personal educational project.
+
+
+## Current Status
+- **Build:** Stable (Compiled to `/dist`).
+- **Data Model:** Uses integer-based currency (`amountCents`) to prevent floating-point errors.
+- **Security:** User Scoping is enforced on all resource operations to ensure data isolation.
+
+## Commands
+- `npm run build`: Compile

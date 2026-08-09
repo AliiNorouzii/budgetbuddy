@@ -1,72 +1,69 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
+import { TransactionType } from '@prisma/client';
 
 @Injectable()
 export class TransactionsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createTransactionDto: CreateTransactionDto) {
-    const {
-      amount,
-      type,
-      description,
-      accountId,
-      categoryId,
-      transactionDate,
-      userId,
-    } = createTransactionDto;
+    const { userId, accountId, categoryId, amountCents, type, description, notes, transactionDate } = createTransactionDto;
 
-    return this.prisma.$transaction(async (tx) => {
-      const account = await tx.account.findFirst({
-        where: { id: accountId, userId },
-      });
-
-      if (!account) {
-        throw new NotFoundException(`حسابی با شناسه ${accountId} برای این کاربر یافت نشد.`);
-      }
-
-      if (categoryId) {
-        const category = await tx.category.findFirst({
-          where: { id: categoryId, userId },
-        });
-
-        if (!category) {
-          throw new NotFoundException(`دسته‌بندی با شناسه ${categoryId} برای این کاربر یافت نشد.`);
-        }
-      }
-
-      return tx.transaction.create({
-        data: {
-          amountCents: amount,
-          type,
-          description: description ?? '',
-          accountId,
-          categoryId: categoryId ?? null,
-          userId,
-          transactionDate: transactionDate ? new Date(transactionDate) : new Date(),
-        },
-      });
+    // ۱. بررسی وجود حساب کاربری متعلق به همین کاربر
+    const account = await this.prisma.account.findFirst({
+      where: { id: accountId, userId },
     });
+    if (!account) {
+      throw new NotFoundException(`Account with ID "${accountId}" not found for this user.`);
+    }
+
+    // ۲. بررسی وجود دسته‌بندی متعلق به همین کاربر (در صورت ارسال)
+    if (categoryId) {
+      const category = await this.prisma.category.findFirst({
+        where: { id: categoryId, userId },
+      });
+      if (!category) {
+        throw new NotFoundException(`Category with ID "${categoryId}" not found for this user.`);
+      }
+    }
+
+    // ۳. ایجاد تراکنش
+    const transaction = await this.prisma.transaction.create({
+      data: {
+        userId,
+        accountId,
+        categoryId: categoryId || null,
+        type,
+        description,
+        amountCents,
+        notes,
+        transactionDate: new Date(transactionDate),
+      },
+    });
+
+    // ۴. به‌روزرسانی موجودی حساب (balanceCents)
+    const balanceChange = type === TransactionType.INCOME ? amountCents : -amountCents;
+    await this.prisma.account.update({
+      where: { id: accountId },
+      data: {
+        balanceCents: {
+          increment: balanceChange,
+        },
+      },
+    });
+
+    return transaction;
   }
 
   async findAll(userId: string) {
-    const userExists = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!userExists) {
-      throw new NotFoundException(`کاربری با شناسه ${userId} یافت نشد.`);
-    }
-
     return this.prisma.transaction.findMany({
       where: { userId },
       include: {
-        account: { select: { name: true } },
-        category: { select: { name: true, color: true, icon: true } },
+        account: true,
+        category: true,
       },
-      orderBy: { transactionDate: 'desc' },
     });
   }
 
@@ -74,86 +71,119 @@ export class TransactionsService {
     const transaction = await this.prisma.transaction.findFirst({
       where: { id, userId },
       include: {
-        account: { select: { name: true } },
-        category: { select: { name: true, color: true, icon: true } },
+        account: true,
+        category: true,
       },
     });
 
     if (!transaction) {
-      throw new NotFoundException(`تراکنشی با شناسه ${id} برای این کاربر یافت نشد.`);
+      throw new NotFoundException(`Transaction with ID "${id}" not found.`);
     }
 
     return transaction;
   }
 
   async update(id: string, userId: string, updateTransactionDto: UpdateTransactionDto) {
-    return this.prisma.$transaction(async (tx) => {
-      const currentTx = await tx.transaction.findFirst({
-        where: { id, userId },
+    // ۱. پیدا کردن تراکنش فعلی و اطمینان از وجود آن
+    const currentTx = await this.findOne(id, userId);
+
+    const { accountId, categoryId, amountCents, type, description, notes, transactionDate } = updateTransactionDto;
+
+    // ۲. بررسی دسته‌بندی در صورت ویرایش
+    if (categoryId) {
+      const category = await this.prisma.category.findFirst({
+        where: { id: categoryId, userId },
       });
-
-      if (!currentTx) {
-        throw new NotFoundException(`تراکنشی با شناسه ${id} یافت نشد.`);
+      if (!category) {
+        throw new NotFoundException(`Category with ID "${categoryId}" not found for this user.`);
       }
+    }
 
-      const targetAccountId = updateTransactionDto.accountId ?? currentTx.accountId;
-      const targetCategoryId =
-        updateTransactionDto.categoryId !== undefined
-          ? updateTransactionDto.categoryId
-          : currentTx.categoryId;
-
-      if (targetAccountId !== currentTx.accountId) {
-        const targetAccount = await tx.account.findFirst({
-          where: { id: targetAccountId, userId },
-        });
-
-        if (!targetAccount) {
-          throw new NotFoundException(`حساب مورد نظر یافت نشد.`);
-        }
+    // ۳. بررسی حساب در صورت ویرایش
+    if (accountId && accountId !== currentTx.accountId) {
+      const targetAccount = await this.prisma.account.findFirst({
+        where: { id: accountId, userId },
+      });
+      if (!targetAccount) {
+        throw new NotFoundException(`Account with ID "${accountId}" not found for this user.`);
       }
+    }
 
-      if (targetCategoryId) {
-        const targetCategory = await tx.category.findFirst({
-          where: { id: targetCategoryId, userId },
-        });
+    // محاسبه تغییرات بالانس حساب
+    const finalAccountId = accountId || currentTx.accountId;
+    const finalType = type || currentTx.type;
+    const finalAmountCents = amountCents !== undefined ? amountCents : currentTx.amountCents;
 
-        if (!targetCategory) {
-          throw new NotFoundException(`دسته‌بندی مورد نظر یافت نشد.`);
-        }
-      }
+    // بازگرداندن اثر تراکنش قبلی
+    const oldEffect = currentTx.type === TransactionType.INCOME ? currentTx.amountCents : -currentTx.amountCents;
+    // اعمال اثر تراکنش جدید
+    const newEffect = finalType === TransactionType.INCOME ? finalAmountCents : -finalAmountCents;
 
-      return tx.transaction.update({
-        where: { id },
+    if (finalAccountId === currentTx.accountId) {
+      // ویرایش روی همان حساب
+      const diff = newEffect - oldEffect;
+      await this.prisma.account.update({
+        where: { id: currentTx.accountId },
         data: {
-          amountCents:
-            updateTransactionDto.amount !== undefined
-              ? updateTransactionDto.amount
-              : currentTx.amountCents,
-          type: updateTransactionDto.type ?? currentTx.type,
-          description: updateTransactionDto.description ?? currentTx.description,
-          accountId: targetAccountId,
-          categoryId: targetCategoryId ?? null,
-          transactionDate: updateTransactionDto.transactionDate
-            ? new Date(updateTransactionDto.transactionDate)
-            : currentTx.transactionDate,
+          balanceCents: {
+            increment: diff,
+          },
         },
       });
+    } else {
+      // انتقال تراکنش به یک حساب دیگر
+      // حذف اثر از حساب قبلی
+      await this.prisma.account.update({
+        where: { id: currentTx.accountId },
+        data: {
+          balanceCents: {
+            decrement: oldEffect,
+          },
+        },
+      });
+      // اضافه کردن اثر به حساب جدید
+      await this.prisma.account.update({
+        where: { id: finalAccountId },
+        data: {
+          balanceCents: {
+            increment: newEffect,
+          },
+        },
+      });
+    }
+
+    // ۴. اعمال تغییرات تراکنش در دیتابیس
+    return this.prisma.transaction.update({
+      where: { id },
+      data: {
+        accountId: finalAccountId,
+        categoryId: categoryId === undefined ? currentTx.categoryId : (categoryId || null),
+        type: finalType,
+        description: description !== undefined ? description : currentTx.description,
+        amountCents: finalAmountCents,
+        notes: notes !== undefined ? notes : currentTx.notes,
+        transactionDate: transactionDate ? new Date(transactionDate) : currentTx.transactionDate,
+      },
     });
   }
 
   async remove(id: string, userId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const transaction = await tx.transaction.findFirst({
-        where: { id, userId },
-      });
+    const transaction = await this.findOne(id, userId);
 
-      if (!transaction) {
-        throw new NotFoundException(`تراکنشی با شناسه ${id} یافت نشد.`);
-      }
+    // معکوس کردن اثر مالی تراکنش روی حساب قبل از حذف
+    const balanceChange = transaction.type === TransactionType.INCOME ? -transaction.amountCents : transaction.amountCents;
 
-      return tx.transaction.delete({
-        where: { id },
-      });
+    await this.prisma.account.update({
+      where: { id: transaction.accountId },
+      data: {
+        balanceCents: {
+          increment: balanceChange,
+        },
+      },
+    });
+
+    return this.prisma.transaction.delete({
+      where: { id },
     });
   }
 }

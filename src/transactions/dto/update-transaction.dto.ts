@@ -1,19 +1,14 @@
-import {
-  IsDateString,
-  IsEnum,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Min,
-} from 'class-validator';
-import { TransactionType } from './create-transaction.dto';
+import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { TransactionType } from '@prisma/client';
 
 export class UpdateTransactionDto {
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  amount?: number;
+  @IsString()
+  accountId?: string;
+
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
 
   @IsOptional()
   @IsEnum(TransactionType)
@@ -24,14 +19,15 @@ export class UpdateTransactionDto {
   description?: string;
 
   @IsOptional()
-  @IsUUID()
-  accountId?: string;
+  @IsInt()
+  @Min(1)
+  amountCents?: number;
 
   @IsOptional()
-  @IsUUID()
-  categoryId?: string | null;
+  @IsString()
+  notes?: string;
 
   @IsOptional()
-  @IsDateString()
+  @IsString()
   transactionDate?: string;
 }

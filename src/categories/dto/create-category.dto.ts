@@ -1,8 +1,12 @@
-import { IsNotEmpty, IsString, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateCategoryDto {
   @IsString()
-  @IsNotEmpty({ message: 'نام دسته‌بندی نمی‌تواند خالی باشد.' })
+  @IsNotEmpty()
+  userId: string;
+
+  @IsString()
+  @IsNotEmpty()
   name: string;
 
   @IsString()
@@ -12,8 +16,4 @@ export class CreateCategoryDto {
   @IsString()
   @IsOptional()
   icon?: string;
-
-  @IsString()
-  @IsNotEmpty({ message: 'شناسه کاربر اجباری است.' })
-  userId: string;
 }

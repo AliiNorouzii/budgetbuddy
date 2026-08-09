@@ -1,29 +1,23 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { INestApplication, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '@prisma/client';
 import { Pool } from 'pg';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
-  private pool: Pool;
+  private readonly pool: Pool;
 
   constructor() {
-    // 1. خواندن رشته اتصال از متغیرهای محیطی
     const connectionString = process.env.DATABASE_URL;
-    
+
     if (!connectionString) {
-      throw new Error('DATABASE_URL is not defined in environment variables');
+      throw new Error('DATABASE_URL is not defined');
     }
 
-    // 2. ساخت Pool با مشخص کردن صریح connectionString
     const pool = new Pool({ connectionString });
-    
-    // 3. ایجاد آداپتور PrismaPg
     const adapter = new PrismaPg(pool);
 
-    // 4. پاس دادن آداپتور به سازنده کلاس پدر (PrismaClient)
     super({ adapter });
-    
     this.pool = pool;
   }
 
@@ -34,5 +28,19 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   async onModuleDestroy() {
     await this.$disconnect();
     await this.pool.end();
+  }
+
+  async cleanDb() {
+    await this.transaction.deleteMany({});
+    await this.budget.deleteMany({});
+    await this.category.deleteMany({});
+    await this.account.deleteMany({});
+    await this.user.deleteMany({});
+  }
+
+  enableShutdownHooks(app: INestApplication) {
+    this.$on('beforeExit', async () => {
+      await app.close();
+    });
   }
 }

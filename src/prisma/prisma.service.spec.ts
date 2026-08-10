@@ -6,7 +6,18 @@ describe('PrismaService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [PrismaService],
+      providers: [
+        {
+          provide: PrismaService,
+          useValue: {
+            user: {
+              count: jest.fn().mockResolvedValue(0),
+            },
+            $connect: jest.fn(),
+            $disconnect: jest.fn(),
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<PrismaService>(PrismaService);

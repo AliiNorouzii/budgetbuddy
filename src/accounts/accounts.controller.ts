@@ -19,13 +19,15 @@ export class AccountsController {
 
   @Post()
   async create(@Req() req: any, @Body() dto: CreateAccountDto) {
-    const userId: string = req.user.userId;
+    // استفاده از sub که استاندارد JWT برای شناسه کاربر است
+    const userId: string = req.user.sub;
     return this.accountsService.create(userId, dto);
   }
 
   @Get()
   async findAll(@Req() req: any) {
-    const userId: string = req.user.userId;
+    // استفاده از sub برای امنیت بیشتر
+    const userId: string = req.user.sub;
     return this.accountsService.findAllForUser(userId);
   }
 }

@@ -9,7 +9,7 @@ export class AccountsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(userId: string, dto: CreateAccountDto) {
-    // اطمینان از وجود کاربر (اختیاری ولی مفید)
+    // بررسی وجود کاربر (اختیاری ولی برای امنیت پیشنهاد می‌شود)
     const userExists = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true },
@@ -50,6 +50,4 @@ export class AccountsService {
 
     return account;
   }
-
-  // اگر بعداً نیاز به update/delete داشتی می‌توانیم اضافه کنیم
 }

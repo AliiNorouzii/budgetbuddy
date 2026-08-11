@@ -7,10 +7,12 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(createCategoryDto: CreateCategoryDto, userId: string) {
+  async create(dto: CreateCategoryDto, userId: string) {
     return this.prisma.category.create({
       data: {
-        ...createCategoryDto,
+        name: dto.name,
+        icon: dto.icon,
+        color: dto.color,
         userId,
       },
     });
@@ -19,31 +21,39 @@ export class CategoriesService {
   async findAll(userId: string) {
     return this.prisma.category.findMany({
       where: { userId },
+      orderBy: { name: 'asc' },
     });
   }
 
   async findOne(id: string, userId: string) {
     const category = await this.prisma.category.findFirst({
-      where: { id, userId },
+      where: {
+        id,
+        userId,
+      },
     });
+
     if (!category) {
       throw new NotFoundException('Category not found');
     }
+
     return category;
   }
 
-  async update(id: string, updateCategoryDto: UpdateCategoryDto, userId: string) {
-    // ابتدا بررسی وجود و مالکیت دسته بندی
+  async update(id: string, dto: UpdateCategoryDto, userId: string) {
     await this.findOne(id, userId);
 
     return this.prisma.category.update({
       where: { id },
-      data: updateCategoryDto,
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.icon !== undefined && { icon: dto.icon }),
+        ...(dto.color !== undefined && { color: dto.color }),
+      },
     });
   }
 
   async remove(id: string, userId: string) {
-    // ابتدا بررسی وجود و مالکیت دسته بندی
     await this.findOne(id, userId);
 
     return this.prisma.category.delete({

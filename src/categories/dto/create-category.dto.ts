@@ -1,4 +1,8 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateCategoryDto {
   @IsString()
@@ -12,7 +16,4 @@ export class CreateCategoryDto {
   @IsString()
   @IsOptional()
   color?: string;
-
-  @IsEnum(['INCOME', 'EXPENSE'])
-  type: 'INCOME' | 'EXPENSE';
 }

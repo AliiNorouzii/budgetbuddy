@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 describe('AccountsService', () => {
   let service: AccountsService;
+  let prisma: PrismaService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -15,9 +16,6 @@ describe('AccountsService', () => {
             account: {
               create: jest.fn(),
               findMany: jest.fn(),
-              findUnique: jest.fn(),
-              update: jest.fn(),
-              delete: jest.fn(),
             },
           },
         },
@@ -25,6 +23,7 @@ describe('AccountsService', () => {
     }).compile();
 
     service = module.get<AccountsService>(AccountsService);
+    prisma = module.get<PrismaService>(PrismaService);
   });
 
   it('should be defined', () => {

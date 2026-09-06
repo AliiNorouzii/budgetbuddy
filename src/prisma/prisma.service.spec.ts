@@ -9,7 +9,13 @@ describe('PrismaService', () => {
       providers: [
         {
           provide: PrismaService,
-          useValue: {},
+          useValue: {
+            user: {
+              count: jest.fn().mockResolvedValue(0),
+            },
+            $connect: jest.fn(),
+            $disconnect: jest.fn(),
+          },
         },
       ],
     }).compile();

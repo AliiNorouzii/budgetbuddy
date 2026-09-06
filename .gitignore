@@ -176,3 +176,6 @@ vite.config.ts.timestamp-*
 .windsurf/
 prisma.config.ts
 skills-lock.json
+.claude/ 
+.agents/ 
+.windsurf/ 

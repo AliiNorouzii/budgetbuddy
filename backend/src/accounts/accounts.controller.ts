@@ -1,34 +1,39 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request } from '@nestjs/common';
 import { AccountsService } from './accounts.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('accounts')
+@UseGuards(JwtAuthGuard)
 export class AccountsController {
   constructor(private readonly accountsService: AccountsService) {}
 
   @Post()
-  create(@Body() createAccountDto: CreateAccountDto) {
-    return this.accountsService.create(createAccountDto);
+  async create(@Request() req: any, @Body() dto: CreateAccountDto) {
+    const userId = req.user.sub || req.user.id;
+    return this.accountsService.create(userId, dto);
   }
 
   @Get()
-  findAll() {
-    return this.accountsService.findAll();
+  async findAll(@Request() req: any) {
+    const userId = req.user.sub || req.user.id;
+    return this.accountsService.findAllForUser(userId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.accountsService.findOne(id);
+  async findOne(@Request() req: any, @Param('id') id: string) {
+    const userId = req.user.sub || req.user.id;
+    return this.accountsService.findOne(userId, id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateAccountDto: UpdateAccountDto) {
-    return this.accountsService.update(id, updateAccountDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.accountsService.remove(id);
+  async update(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() dto: UpdateAccountDto,
+  ) {
+    const userId = req.user.sub || req.user.id;
+    return this.accountsService.update(userId, id, dto);
   }
 }

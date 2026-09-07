@@ -1,31 +1,44 @@
-import { IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Min } from 'class-validator';
-import { TransactionType } from '@prisma/client';
+import {
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
+
+export enum TransactionType {
+  INCOME = 'INCOME',
+  EXPENSE = 'EXPENSE',
+}
 
 export class CreateTransactionDto {
   @IsInt()
-  @Min(0)
-  amountCents: number;
+  @Min(1)
+  amount: number;
 
   @IsEnum(TransactionType)
   type: TransactionType;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  description: string;
-
-  @IsDateString()
-  @IsNotEmpty()
-  transactionDate: string;
+  description?: string;
 
   @IsUUID()
   @IsNotEmpty()
   accountId: string;
 
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  transactionDate?: string;
+
   @IsUUID()
   @IsNotEmpty()
-  categoryId: string;
-
-  @IsString()
-  @IsOptional()
-  notes?: string;
+  userId: string;
 }

@@ -1,17 +1,15 @@
-// backend/src/accounts/dto/create-account.dto.ts
-
-import { IsInt, IsNotEmpty, IsString, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class CreateAccountDto {
   @IsString()
   @IsNotEmpty()
-  name!: string;
+  name: string;
 
   @IsString()
   @IsNotEmpty()
-  type!: string;
+  type: string;
 
   @IsInt()
-  @Min(0)
-  balanceCents!: number;
+  @IsOptional()
+  balanceCents?: number;
 }

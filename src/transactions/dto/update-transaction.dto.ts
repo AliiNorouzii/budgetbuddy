@@ -1,13 +1,19 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { IsDateString, IsEnum, IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
-import { TransactionType } from '@prisma/client';
-import { CreateTransactionDto } from './create-transaction.dto';
+import {
+  IsDateString,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+} from 'class-validator';
+import { TransactionType } from './create-transaction.dto';
 
-export class UpdateTransactionDto extends PartialType(CreateTransactionDto) {
+export class UpdateTransactionDto {
   @IsOptional()
   @IsInt()
-  @Min(0)
-  amountCents?: number;
+  @Min(1)
+  amount?: number;
 
   @IsOptional()
   @IsEnum(TransactionType)
@@ -18,18 +24,14 @@ export class UpdateTransactionDto extends PartialType(CreateTransactionDto) {
   description?: string;
 
   @IsOptional()
-  @IsDateString()
-  transactionDate?: string;
-
-  @IsOptional()
   @IsUUID()
   accountId?: string;
 
   @IsOptional()
   @IsUUID()
-  categoryId?: string;
+  categoryId?: string | null;
 
   @IsOptional()
-  @IsString()
-  notes?: string;
+  @IsDateString()
+  transactionDate?: string;
 }

@@ -1,16 +1,4 @@
-// backend/src/accounts/accounts.controller.ts
-
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request } from '@nestjs/common';
 import { AccountsService } from './accounts.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
@@ -22,24 +10,30 @@ export class AccountsController {
   constructor(private readonly accountsService: AccountsService) {}
 
   @Post()
-  async create(@Req() req: any, @Body() dto: CreateAccountDto) {
-    const userId: string = req.user.sub;
+  async create(@Request() req: any, @Body() dto: CreateAccountDto) {
+    const userId = req.user.sub || req.user.id;
     return this.accountsService.create(userId, dto);
   }
 
   @Get()
-  async findAll(@Req() req: any) {
-    const userId: string = req.user.sub;
+  async findAll(@Request() req: any) {
+    const userId = req.user.sub || req.user.id;
     return this.accountsService.findAllForUser(userId);
   }
 
-  @Patch(':accountId')
+  @Get(':id')
+  async findOne(@Request() req: any, @Param('id') id: string) {
+    const userId = req.user.sub || req.user.id;
+    return this.accountsService.findOne(userId, id);
+  }
+
+  @Patch(':id')
   async update(
-    @Req() req: any,
-    @Param('accountId', new ParseUUIDPipe()) accountId: string,
+    @Request() req: any,
+    @Param('id') id: string,
     @Body() dto: UpdateAccountDto,
   ) {
-    const userId: string = req.user.sub;
-    return this.accountsService.update(userId, accountId, dto);
+    const userId = req.user.sub || req.user.id;
+    return this.accountsService.update(userId, id, dto);
   }
 }

@@ -4,19 +4,20 @@ import { AppService } from './app.service';
 
 describe('AppController', () => {
   let appController: AppController;
-  let appService: { getHello: jest.Mock };
 
   beforeEach(async () => {
-    appService = {
-      getHello: jest.fn().mockResolvedValue('Hello World!'),
-    };
-
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
       providers: [
         {
           provide: AppService,
-          useValue: appService,
+          useValue: {
+            getHello: jest
+              .fn()
+              .mockResolvedValue(
+                'Connection to Database Successful! User count: 2',
+              ),
+          },
         },
       ],
     }).compile();
@@ -25,8 +26,9 @@ describe('AppController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', async () => {
-      await expect(appController.getHello()).resolves.toBe('Hello World!');
+    it('should return database connection status', async () => {
+      const result = await appController.getHello();
+      expect(result).toContain('Connection to Database Successful!');
     });
   });
 });

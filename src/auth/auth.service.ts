@@ -1,51 +1,165 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { UsersService } from '../users/users.service';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
+import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
-  constructor(
-    private usersService: UsersService,
-    private jwtService: JwtService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async register(registerDto: RegisterDto) {
-    const existingUser = await this.usersService.findByEmail(registerDto.email);
-    if (existingUser) {
-      throw new ConflictException('Email already exists');
-    }
+  async register(dto: RegisterDto) {
+    const normalizedEmail = dto.email.toLowerCase().trim();
 
-    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
-    const user = await this.usersService.create({
-      email: registerDto.email,
-      passwordHash: hashedPassword,
-      name: registerDto.name,
+    const existingUser = await this.prisma.user.findUnique({
+      where: {
+        email: normalizedEmail,
+      },
     });
 
-    return this.generateToken(user.id, user.email);
+    if (existingUser) {
+      throw new ConflictException(
+        'کاربری با این ایمیل قبلاً ثبت‌نام کرده است.',
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+
+    const user = await this.prisma.user.create({
+      data: {
+        name: dto.name,
+        email: normalizedEmail,
+        passwordHash,
+      },
+    });
+
+    return this.createSession(user.id);
   }
 
-  async login(loginDto: LoginDto) {
-    const user = await this.usersService.findByEmail(loginDto.email);
+  async validateUser(email: string, password: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const user = await this.prisma.user.findUnique({
+      where: {
+        email: normalizedEmail,
+      },
+    });
+
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      return null;
     }
 
-    const isPasswordValid = await bcrypt.compare(loginDto.password, user.passwordHash);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+    const passwordIsValid = await bcrypt.compare(password, user.passwordHash);
+
+    if (!passwordIsValid) {
+      return null;
     }
 
-    return this.generateToken(user.id, user.email);
+    return user;
   }
 
-  private generateToken(userId: string, email: string) {
-    const payload = { sub: userId, email };
+  async login(email: string, password: string) {
+    const user = await this.validateUser(email, password);
+
+    if (!user) {
+      throw new UnauthorizedException('ایمیل یا کلمه عبور اشتباه است.');
+    }
+
+    return this.createSession(user.id);
+  }
+
+  async createSession(userId: string) {
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+
+    const sessionTokenHash = crypto
+      .createHash('sha256')
+      .update(sessionToken)
+      .digest('hex');
+
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    await this.prisma.session.create({
+      data: {
+        userId,
+        sessionTokenHash,
+        expiresAt,
+      },
+    });
+
+    const user = await this.prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+    });
+
     return {
-      access_token: this.jwtService.sign(payload),
+      sessionToken,
+      expiresAt,
+      user,
+    };
+  }
+
+  async validateSession(sessionToken: string) {
+    const sessionTokenHash = crypto
+      .createHash('sha256')
+      .update(sessionToken)
+      .digest('hex');
+
+    const session = await this.prisma.session.findUnique({
+      where: {
+        sessionTokenHash,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      return null;
+    }
+
+    if (session.expiresAt <= new Date()) {
+      await this.prisma.session.delete({
+        where: {
+          id: session.id,
+        },
+      });
+
+      return null;
+    }
+
+    return session.user;
+  }
+
+  async logout(sessionToken: string) {
+    const sessionTokenHash = crypto
+      .createHash('sha256')
+      .update(sessionToken)
+      .digest('hex');
+
+    await this.prisma.session.deleteMany({
+      where: {
+        sessionTokenHash,
+      },
+    });
+
+    return {
+      message: 'خروج از حساب با موفقیت انجام شد.',
     };
   }
 }

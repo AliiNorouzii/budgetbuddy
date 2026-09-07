@@ -1,43 +1,44 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-
-function generateTimeBasedRandId(): number {
-  const timestampMod = Date.now() % 900000;
-  return 100000 + (timestampMod % 900000);
-}
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createUserDto: CreateUserDto) {
+    const normalizedEmail = createUserDto.email.toLowerCase().trim();
+
     const existingUser = await this.prisma.user.findUnique({
-      where: { email: createUserDto.email },
+      where: {
+        email: normalizedEmail,
+      },
     });
 
     if (existingUser) {
-      throw new ConflictException('User with this email already exists');
+      throw new ConflictException(
+        'کاربری با این ایمیل قبلاً ثبت‌نام کرده است.',
+      );
     }
+
+    const passwordHash = await bcrypt.hash(createUserDto.password, 10);
 
     return this.prisma.user.create({
       data: {
-        email: createUserDto.email,
-        fullName: createUserDto.fullName,
-        randId: generateTimeBasedRandId(),
-        credential: {
-          create: {
-            passwordHash: createUserDto.passwordHash,
-          },
-        },
+        name: createUserDto.name.trim(),
+        email: normalizedEmail,
+        passwordHash,
       },
       select: {
         id: true,
-        rowId: true,
-        randId: true,
+        name: true,
         email: true,
-        fullName: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -48,35 +49,33 @@ export class UsersService {
     return this.prisma.user.findMany({
       select: {
         id: true,
-        rowId: true,
-        randId: true,
+        name: true,
         email: true,
-        fullName: true,
         createdAt: true,
         updatedAt: true,
       },
       orderBy: {
-        rowId: 'asc',
+        createdAt: 'desc',
       },
     });
   }
 
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
-      where: { id },
+      where: {
+        id,
+      },
       select: {
         id: true,
-        rowId: true,
-        randId: true,
+        name: true,
         email: true,
-        fullName: true,
         createdAt: true,
         updatedAt: true,
       },
     });
 
     if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
+      throw new NotFoundException('کاربر موردنظر پیدا نشد.');
     }
 
     return user;
@@ -84,50 +83,54 @@ export class UsersService {
 
   async findByEmail(email: string) {
     return this.prisma.user.findUnique({
-      where: { email },
-      include: {
-        credential: true,
+      where: {
+        email: email.toLowerCase().trim(),
       },
     });
-  }
-
-  async findByRandId(randId: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { randId },
-      select: {
-        id: true,
-        rowId: true,
-        randId: true,
-        email: true,
-        fullName: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException(`User with randId ${randId} not found`);
-    }
-
-    return user;
-
   }
 
   async update(id: string, updateUserDto: UpdateUserDto) {
     await this.findOne(id);
 
+    const data: {
+      name?: string;
+      email?: string;
+      passwordHash?: string;
+    } = {};
+
+    if (updateUserDto.name !== undefined) {
+      data.name = updateUserDto.name.trim();
+    }
+
+    if (updateUserDto.email !== undefined) {
+      const normalizedEmail = updateUserDto.email.toLowerCase().trim();
+
+      const userWithSameEmail = await this.prisma.user.findUnique({
+        where: {
+          email: normalizedEmail,
+        },
+      });
+
+      if (userWithSameEmail && userWithSameEmail.id !== id) {
+        throw new ConflictException('کاربر دیگری با این ایمیل ثبت شده است.');
+      }
+
+      data.email = normalizedEmail;
+    }
+
+    if (updateUserDto.password !== undefined) {
+      data.passwordHash = await bcrypt.hash(updateUserDto.password, 10);
+    }
+
     return this.prisma.user.update({
-      where: { id },
-      data: {
-        fullName: updateUserDto.fullName,
-        email: updateUserDto.email,
+      where: {
+        id,
       },
+      data,
       select: {
         id: true,
-        rowId: true,
-        randId: true,
+        name: true,
         email: true,
-        fullName: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -138,13 +141,13 @@ export class UsersService {
     await this.findOne(id);
 
     return this.prisma.user.delete({
-      where: { id },
+      where: {
+        id,
+      },
       select: {
         id: true,
-        rowId: true,
-        randId: true,
+        name: true,
         email: true,
-        fullName: true,
       },
     });
   }

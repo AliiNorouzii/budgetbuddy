@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { AccountType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
@@ -10,10 +11,9 @@ export class AccountsService {
   async create(userId: string, dto: CreateAccountDto) {
     return this.prisma.account.create({
       data: {
-        name: dto.name,
-        type: dto.type,
-        balanceCents: dto.balanceCents ?? 0,
         userId,
+        name: dto.name,
+        type: dto.type ? (dto.type as AccountType) : AccountType.CASH,
       },
     });
   }
@@ -21,25 +21,52 @@ export class AccountsService {
   async findAllForUser(userId: string) {
     return this.prisma.account.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
   }
 
-  async findOne(userId: string, accountId: string) {
+  async findAll(userId: string) {
+    return this.findAllForUser(userId);
+  }
+
+  async findOne(userId: string, id: string) {
     const account = await this.prisma.account.findFirst({
-      where: { id: accountId, userId },
+      where: {
+        id,
+        userId,
+      },
     });
+
     if (!account) {
-      throw new NotFoundException('Account not found');
+      throw new NotFoundException('حساب موردنظر پیدا نشد.');
     }
+
     return account;
   }
 
-  async update(userId: string, accountId: string, dto: UpdateAccountDto) {
-    await this.findOne(userId, accountId);
+  async update(userId: string, id: string, dto: UpdateAccountDto) {
+    await this.findOne(userId, id);
+
     return this.prisma.account.update({
-      where: { id: accountId },
-      data: dto,
+      where: { id },
+      data: {
+        ...(dto.name !== undefined && {
+          name: dto.name,
+        }),
+        ...(dto.type !== undefined && {
+          type: dto.type as AccountType,
+        }),
+      },
+    });
+  }
+
+  async remove(userId: string, id: string) {
+    await this.findOne(userId, id);
+
+    return this.prisma.account.delete({
+      where: { id },
     });
   }
 }

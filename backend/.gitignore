@@ -50,3 +50,10 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 .tmp
 
 /generated/prisma
+
+# AI / agent tooling — do not commit
+cloud/
+agent/
+.agents/
+.claude/
+.windsurf/

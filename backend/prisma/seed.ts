@@ -1,187 +1,94 @@
-import 'dotenv/config';
-import { PrismaClient, TransactionType } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
+import { PrismaClient, AccountType, TransactionType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
-const connectionString = process.env.DATABASE_URL;
-
-if (!connectionString) {
-  throw new Error('DATABASE_URL environment variable is missing.');
-}
-
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
-
-function generateTimeBasedRandId(offset: number = 0): number {
-  const timestampMod = (Date.now() + offset) % 900000;
-  return 100000 + (timestampMod % 900000);
-}
+const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting database seed...');
+  const email = 'demo@budgetbuddy.local';
 
-  // 1. پاکسازی داده‌های قبلی به ترتیب روابط
   await prisma.transaction.deleteMany();
-  await prisma.budget.deleteMany();
-  await prisma.account.deleteMany();
   await prisma.category.deleteMany();
-  await prisma.userCredential.deleteMany();
-  await prisma.user.deleteMany();
+  await prisma.account.deleteMany();
+  await prisma.session.deleteMany();
+  await prisma.user.deleteMany({ where: { email } });
 
-  // 2. ساخت کاربران تستی همراه با UserCredential، rowId خودکار و randId ۶ رقمی
-  const passwordHashDefault = await bcrypt.hash('Password123!', 10);
-  const passwordHashSarah = await bcrypt.hash('SarahPass!456', 10);
-  const passwordHashReza = await bcrypt.hash('RezaPass!789', 10);
+  const passwordHash = await bcrypt.hash('Password123!', 10);
 
-  const ali = await prisma.user.create({
+  const user = await prisma.user.create({
     data: {
-      email: 'ali@budgetbuddy.local',
-      fullName: 'Ali Norouzi',
-      randId: generateTimeBasedRandId(101),
-      credential: {
-        create: {
-          passwordHash: passwordHashDefault,
-        },
+      email,
+      name: 'Demo User',
+      passwordHash,
+    },
+  });
+
+  const [wallet, bank] = await Promise.all([
+    prisma.account.create({
+      data: {
+        userId: user.id,
+        name: 'کیف پول نقدی',
+        type: AccountType.CASH,
       },
-    },
-  });
-
-  const sarah = await prisma.user.create({
-    data: {
-      email: 'sarah@budgetbuddy.local',
-      fullName: 'Sarah Ahmadi',
-      randId: generateTimeBasedRandId(202),
-      credential: {
-        create: {
-          passwordHash: passwordHashSarah,
-        },
+    }),
+    prisma.account.create({
+      data: {
+        userId: user.id,
+        name: 'حساب جاری ملت',
+        type: AccountType.BANK,
       },
-    },
-  });
+    }),
+  ]);
 
-  const reza = await prisma.user.create({
-    data: {
-      email: 'reza@budgetbuddy.local',
-      fullName: 'Reza Tehrani',
-      randId: generateTimeBasedRandId(303),
-      credential: {
-        create: {
-          passwordHash: passwordHashReza,
-        },
+  const [food, salary] = await Promise.all([
+    prisma.category.create({
+      data: {
+        userId: user.id,
+        name: 'خوراک و رستوران',
+        color: '#f97316',
+        icon: 'Utensils',
       },
-    },
+    }),
+    prisma.category.create({
+      data: {
+        userId: user.id,
+        name: 'حقوق و دستمزد',
+        color: '#22c55e',
+        icon: 'Briefcase',
+      },
+    }),
+  ]);
+
+  await prisma.transaction.createMany({
+    data: [
+      {
+        userId: user.id,
+        accountId: bank.id,
+        categoryId: salary.id,
+        type: TransactionType.INCOME,
+        amountCents: 2500000000,
+        transactionDate: new Date(),
+        description: 'واریز حقوق ماهانه',
+      },
+      {
+        userId: user.id,
+        accountId: wallet.id,
+        categoryId: food.id,
+        type: TransactionType.EXPENSE,
+        amountCents: 4500000,
+        transactionDate: new Date(),
+        description: 'خرید سوپرمارکت',
+      },
+    ],
   });
 
-  console.log(`✅ Users created: Ali (${ali.randId}), Sarah (${sarah.randId}), Reza (${reza.randId})`);
-
-  // 3. ساخت حساب‌های بانکی نمونه برای کاربر علی
-  const mainAccount = await prisma.account.create({
-    data: {
-      userId: ali.id,
-      name: 'حساب اصلی (بانک ملت)',
-      type: 'CHECKING',
-      balanceCents: 50000000,
-    },
-  });
-
-  const savingsAccount = await prisma.account.create({
-    data: {
-      userId: ali.id,
-      name: 'پس‌انداز (بانک سامان)',
-      type: 'SAVINGS',
-      balanceCents: 120000000,
-    },
-  });
-
-  // 4. ساخت دسته‌بندی‌های نمونه
-  const catGroceries = await prisma.category.create({
-    data: {
-      userId: ali.id,
-      name: 'خوراک و سوپرمارکت',
-      color: '#10B981',
-      icon: 'shopping-cart',
-    },
-  });
-
-  const catSalary = await prisma.category.create({
-    data: {
-      userId: ali.id,
-      name: 'حقوق و دستمزد',
-      color: '#3B82F6',
-      icon: 'briefcase',
-    },
-  });
-
-  const catTransport = await prisma.category.create({
-    data: {
-      userId: ali.id,
-      name: 'حمل و نقل',
-      color: '#F59E0B',
-      icon: 'car',
-    },
-  });
-
-  // 5. ساخت تراکنش‌های نمونه
-  const now = new Date();
-
-  await prisma.transaction.create({
-    data: {
-      userId: ali.id,
-      accountId: mainAccount.id,
-      categoryId: catSalary.id,
-      type: TransactionType.INCOME,
-      amountCents: 45000000,
-      description: 'واریز حقوق ماهانه',
-      transactionDate: new Date(now.getFullYear(), now.getMonth(), 1),
-    },
-  });
-
-  await prisma.transaction.create({
-    data: {
-      userId: ali.id,
-      accountId: mainAccount.id,
-      categoryId: catGroceries.id,
-      type: TransactionType.EXPENSE,
-      amountCents: 3500000,
-      description: 'خرید از فروشگاه هایپراستار',
-      transactionDate: new Date(now.getFullYear(), now.getMonth(), 2),
-    },
-  });
-
-  await prisma.transaction.create({
-    data: {
-      userId: ali.id,
-      accountId: mainAccount.id,
-      categoryId: catTransport.id,
-      type: TransactionType.EXPENSE,
-      amountCents: 450000,
-      description: 'بنزین و اسنپ',
-      transactionDate: new Date(now.getFullYear(), now.getMonth(), 4),
-    },
-  });
-
-  // 6. ساخت بودجه نمونه
-  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  await prisma.budget.create({
-    data: {
-      userId: ali.id,
-      categoryId: catGroceries.id,
-      month: currentMonthStr,
-      amountCents: 10000000,
-    },
-  });
-
-  console.log('🚀 Seed completed successfully!');
+  console.log('Seed completed successfully for user:', user.email);
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seed failed:', e);
+    console.error(e);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
-    await pool.end();
   });

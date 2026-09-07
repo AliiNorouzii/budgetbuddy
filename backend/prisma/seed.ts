@@ -14,6 +14,11 @@ const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
+function generateTimeBasedRandId(offset: number = 0): number {
+  const timestampMod = (Date.now() + offset) % 900000;
+  return 100000 + (timestampMod % 900000);
+}
+
 async function main() {
   console.log('🌱 Starting database seed...');
 
@@ -25,7 +30,7 @@ async function main() {
   await prisma.userCredential.deleteMany();
   await prisma.user.deleteMany();
 
-  // 2. ساخت کاربران تستی همراه با UserCredential مجزا (Nested Create)
+  // 2. ساخت کاربران تستی همراه با UserCredential، rowId خودکار و randId ۶ رقمی
   const passwordHashDefault = await bcrypt.hash('Password123!', 10);
   const passwordHashSarah = await bcrypt.hash('SarahPass!456', 10);
   const passwordHashReza = await bcrypt.hash('RezaPass!789', 10);
@@ -34,6 +39,7 @@ async function main() {
     data: {
       email: 'ali@budgetbuddy.local',
       fullName: 'Ali Norouzi',
+      randId: generateTimeBasedRandId(101),
       credential: {
         create: {
           passwordHash: passwordHashDefault,
@@ -46,6 +52,7 @@ async function main() {
     data: {
       email: 'sarah@budgetbuddy.local',
       fullName: 'Sarah Ahmadi',
+      randId: generateTimeBasedRandId(202),
       credential: {
         create: {
           passwordHash: passwordHashSarah,
@@ -58,6 +65,7 @@ async function main() {
     data: {
       email: 'reza@budgetbuddy.local',
       fullName: 'Reza Tehrani',
+      randId: generateTimeBasedRandId(303),
       credential: {
         create: {
           passwordHash: passwordHashReza,
@@ -66,7 +74,7 @@ async function main() {
     },
   });
 
-  console.log('✅ Users and Credentials created.');
+  console.log(`✅ Users created: Ali (${ali.randId}), Sarah (${sarah.randId}), Reza (${reza.randId})`);
 
   // 3. ساخت حساب‌های بانکی نمونه برای کاربر علی
   const mainAccount = await prisma.account.create({
@@ -74,7 +82,7 @@ async function main() {
       userId: ali.id,
       name: 'حساب اصلی (بانک ملت)',
       type: 'CHECKING',
-      balanceCents: 500000000, // 5,000,000 تومان
+      balanceCents: 50000000,
     },
   });
 
@@ -83,7 +91,7 @@ async function main() {
       userId: ali.id,
       name: 'پس‌انداز (بانک سامان)',
       type: 'SAVINGS',
-      balanceCents: 1200000000, // 12,000,000 تومان
+      balanceCents: 120000000,
     },
   });
 
@@ -124,7 +132,7 @@ async function main() {
       accountId: mainAccount.id,
       categoryId: catSalary.id,
       type: TransactionType.INCOME,
-      amountCents: 350000000, // 3,500,000 تومان
+      amountCents: 45000000,
       description: 'واریز حقوق ماهانه',
       transactionDate: new Date(now.getFullYear(), now.getMonth(), 1),
     },
@@ -136,9 +144,9 @@ async function main() {
       accountId: mainAccount.id,
       categoryId: catGroceries.id,
       type: TransactionType.EXPENSE,
-      amountCents: 45000000, // 450,000 تومان
-      description: 'خرید هفتگی سوپرمارکت',
-      transactionDate: new Date(now.getFullYear(), now.getMonth(), 3),
+      amountCents: 3500000,
+      description: 'خرید از فروشگاه هایپراستار',
+      transactionDate: new Date(now.getFullYear(), now.getMonth(), 2),
     },
   });
 
@@ -148,7 +156,7 @@ async function main() {
       accountId: mainAccount.id,
       categoryId: catTransport.id,
       type: TransactionType.EXPENSE,
-      amountCents: 15000000, // 150,000 تومان
+      amountCents: 450000,
       description: 'بنزین و اسنپ',
       transactionDate: new Date(now.getFullYear(), now.getMonth(), 4),
     },
@@ -161,7 +169,7 @@ async function main() {
       userId: ali.id,
       categoryId: catGroceries.id,
       month: currentMonthStr,
-      amountCents: 100000000, // سقف ۱,۰۰۰,۰۰۰ تومان
+      amountCents: 10000000,
     },
   });
 
